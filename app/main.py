@@ -18,10 +18,21 @@ from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
 from .tracing import tracing_enabled
 
+from fastapi.middleware.cors import CORSMiddleware
+
 configure_logging()
 log = get_logger()
 app = FastAPI(title="Day 13 Observability Lab")
 app.add_middleware(CorrelationIdMiddleware)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 agent = LabAgent()
 
 

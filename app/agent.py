@@ -42,7 +42,7 @@ class LabAgent:
         )
         langfuse_context.update_current_observation(
             metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
-            usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+            usage={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
         )
 
         metrics.record_request(

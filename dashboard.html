@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 13 Observability Dashboard</title>
+    <!-- Google Fonts: Inter & Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --glow-blue: rgba(59, 130, 246, 0.15);
+            --glow-green: rgba(16, 185, 129, 0.15);
+            --glow-red: rgba(239, 68, 68, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .logo-section h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.05em;
+        }
+
+        .logo-section p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .endpoint-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.875rem;
+            width: 250px;
+            transition: all 0.3s ease;
+        }
+
+        .endpoint-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 10px var(--glow-blue);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-yellow);
+            box-shadow: 0 0 8px var(--accent-yellow);
+        }
+
+        .status-dot.connected {
+            background-color: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .status-dot.disconnected {
+            background-color: var(--accent-red);
+            box-shadow: 0 0 8px var(--accent-red);
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--accent-blue);
+        }
+
+        .kpi-card.kpi-error::before { background-color: var(--accent-red); }
+        .kpi-card.kpi-cost::before { background-color: var(--accent-green); }
+        .kpi-card.kpi-quality::before { background-color: var(--accent-purple); }
+
+        .kpi-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .kpi-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: baseline;
+            gap: 0.25rem;
+        }
+
+        .kpi-unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* Chart Grid */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1.5rem;
+            }
+            .controls {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .endpoint-input {
+                width: 100%;
+            }
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+        }
+
+        .chart-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .chart-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .chart-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            height: calc(100% - 40px);
+        }
+
+        .error-breakdown-list {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            max-height: 60px;
+            overflow-y: auto;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 0.5rem;
+        }
+
+        .error-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.15rem 0;
+        }
+
+        .error-item .error-name {
+            color: var(--accent-red);
+            font-family: monospace;
+        }
+
+        .error-item .error-count {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1>Day 13 Observability</h1>
+            <p>Real-time telemetry and service health visualization</p>
+        </div>
+        <div class="controls">
+            <input type="text" id="endpoint" class="endpoint-input" value="http://127.0.0.1:8000/metrics" placeholder="Backend URL">
+            <div class="status-badge">
+                <div id="status-dot" class="status-dot disconnected"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+            <button class="btn" onclick="fetchMetrics()">Refresh Now</button>
+        </div>
+    </header>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Traffic Volume</div>
+            <div class="kpi-value" id="kpi-traffic">0 <span class="kpi-unit">requests</span></div>
+        </div>
+        <div class="kpi-card kpi-error">
+            <div class="kpi-title">Error Rate</div>
+            <div class="kpi-value" id="kpi-error-rate">0.0 <span class="kpi-unit">%</span></div>
+        </div>
+        <div class="kpi-card kpi-cost">
+            <div class="kpi-title">LLM Consumption</div>
+            <div class="kpi-value" id="kpi-cost">$0.0000</div>
+        </div>
+        <div class="kpi-card kpi-quality">
+            <div class="kpi-title">Avg Quality Proxy</div>
+            <div class="kpi-value" id="kpi-quality">0.00</div>
+        </div>
+    </div>
+
+    <!-- Chart Grid -->
+    <div class="chart-grid">
+        <!-- 1. Latency -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Latency Trends</div>
+                    <div class="chart-subtitle">P50, P95, P99 compared to SLO</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-latency"></canvas>
+            </div>
+        </div>
+
+        <!-- 2. Traffic -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Traffic & Load</div>
+                    <div class="chart-subtitle">Cumulative request volume</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-traffic"></canvas>
+            </div>
+        </div>
+
+        <!-- 3. Error Rate -->
+        <div class="chart-card" style="height: 380px;">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Error Rate & Breakdown</div>
+                    <div class="chart-subtitle">Percentage of failed requests vs SLO</div>
+                </div>
+            </div>
+            <div class="chart-container" style="height: 180px;">
+                <canvas id="chart-errors"></canvas>
+            </div>
+            <div class="error-breakdown-list" id="error-breakdown">
+                <div style="text-align: center; padding: 0.5rem 0;">No errors recorded</div>
+            </div>
+        </div>
+
+        <!-- 4. Cost over time -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">LLM Budget & Cost</div>
+                    <div class="chart-subtitle">Cumulative cost in USD vs daily budget limit</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-cost"></canvas>
+            </div>
+        </div>
+
+        <!-- 5. Tokens -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Token Utilization</div>
+                    <div class="chart-subtitle">Input tokens vs Output tokens</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-tokens"></canvas>
+            </div>
+        </div>
+
+        <!-- 6. Quality average -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Answer Quality Heuristics</div>
+                    <div class="chart-subtitle">Average semantic quality evaluation</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-quality"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for historical data (Max 20 data points)
+        const MAX_POINTS = 20;
+        const dataHistory = {
+            labels: [],
+            latency_p50: [],
+            latency_p95: [],
+            latency_p99: [],
+            traffic: [],
+            error_rate: [],
+            total_cost: [],
+            tokens_in: [],
+            tokens_out: [],
+            quality: []
+        };
+
+        // Chart instances
+        let charts = {};
+
+        // Helper to format timestamps
+        function getFormattedTime() {
+            const now = new Date();
+            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // Initialize all charts
+        function initCharts() {
+            const ctxLatency = document.getElementById('chart-latency').getContext('2d');
+            charts.latency = new Chart(ctxLatency, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'P50 (ms)', data: [], borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+                        { label: 'P95 (ms)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+                        { label: 'P99 (ms)', data: [], borderColor: '#ef4444', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+                        { label: 'SLO (3000ms)', data: [], borderColor: 'rgba(239, 68, 68, 0.4)', borderDash: [5, 5], backgroundColor: 'transparent', borderWidth: 1.5, pointStyle: 'none', pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+
+            const ctxTraffic = document.getElementById('chart-traffic').getContext('2d');
+            charts.traffic = new Chart(ctxTraffic, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Total Requests', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, borderWidth: 2, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+
+            const ctxErrors = document.getElementById('chart-errors').getContext('2d');
+            charts.errors = new Chart(ctxErrors, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Error Rate (%)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, borderWidth: 2, tension: 0.3 },
+                        { label: 'SLO Target (2%)', data: [], borderColor: 'rgba(239, 68, 68, 0.4)', borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+
+            const ctxCost = document.getElementById('chart-cost').getContext('2d');
+            charts.cost = new Chart(ctxCost, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Total Cost ($)', data: [], borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3 },
+                        { label: 'SLO Budget ($2.5)', data: [], borderColor: 'rgba(239, 68, 68, 0.4)', borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+
+            const ctxTokens = document.getElementById('chart-tokens').getContext('2d');
+            charts.tokens = new Chart(ctxTokens, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Tokens In', data: [], backgroundColor: '#3b82f6', borderWidth: 0 },
+                        { label: 'Tokens Out', data: [], backgroundColor: '#8b5cf6', borderWidth: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' }, stacked: true },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' }, stacked: true }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+
+            const ctxQuality = document.getElementById('chart-quality').getContext('2d');
+            charts.quality = new Chart(ctxQuality, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Avg Quality Score', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.1)', fill: true, borderWidth: 2, tension: 0.3 },
+                        { label: 'SLO Target (0.75)', data: [], borderColor: 'rgba(16, 185, 129, 0.4)', borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0.0, max: 1.0, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f3f4f6' } } }
+                }
+            });
+        }
+
+        // Fetch metrics from backend
+        async function fetchMetrics() {
+            const endpoint = document.getElementById('endpoint').value;
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+
+            try {
+                const response = await fetch(endpoint);
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                
+                const data = await response.json();
+                
+                // Update status UI
+                statusDot.className = "status-dot connected";
+                statusText.innerText = "Connected";
+
+                // Update KPIs
+                document.getElementById('kpi-traffic').innerHTML = `${data.traffic} <span class="kpi-unit">requests</span>`;
+                
+                // Calculate error rate
+                let totalErrors = 0;
+                if (data.error_breakdown) {
+                    for (let key in data.error_breakdown) {
+                        totalErrors += data.error_breakdown[key];
+                    }
+                }
+                const errorRatePct = data.traffic > 0 ? ((totalErrors / data.traffic) * 100).toFixed(1) : "0.0";
+                document.getElementById('kpi-error-rate').innerHTML = `${errorRatePct} <span class="kpi-unit">%</span>`;
+                
+                // Change KPI box border indicator if error SLO is breached
+                const errorCard = document.querySelector('.kpi-error');
+                if (parseFloat(errorRatePct) > 2.0) {
+                    errorCard.style.boxShadow = "0 0 15px rgba(239, 68, 68, 0.3)";
+                    errorCard.style.borderColor = "var(--accent-red)";
+                } else {
+                    errorCard.style.boxShadow = "none";
+                    errorCard.style.borderColor = "var(--card-border)";
+                }
+
+                document.getElementById('kpi-cost').innerText = `$${data.total_cost_usd.toFixed(4)}`;
+                document.getElementById('kpi-quality').innerText = data.quality_avg.toFixed(2);
+
+                // Update error list breakdown
+                const errorListContainer = document.getElementById('error-breakdown');
+                errorListContainer.innerHTML = '';
+                if (data.error_breakdown && Object.keys(data.error_breakdown).length > 0) {
+                    for (let err in data.error_breakdown) {
+                        errorListContainer.innerHTML += `
+                            <div class="error-item">
+                                <span class="error-name">${err}</span>
+                                <span class="error-count">${data.error_breakdown[err]}</span>
+                            </div>
+                        `;
+                    }
+                } else {
+                    errorListContainer.innerHTML = '<div style="text-align: center; padding: 0.5rem 0;">No errors recorded</div>';
+                }
+
+                // Process history logs
+                const timeLabel = getFormattedTime();
+                if (dataHistory.labels.length >= MAX_POINTS) {
+                    for (let key in dataHistory) {
+                        dataHistory[key].shift();
+                    }
+                }
+
+                dataHistory.labels.push(timeLabel);
+                dataHistory.latency_p50.push(data.latency_p50);
+                dataHistory.latency_p95.push(data.latency_p95);
+                dataHistory.latency_p99.push(data.latency_p99);
+                dataHistory.traffic.push(data.traffic);
+                dataHistory.error_rate.push(parseFloat(errorRatePct));
+                dataHistory.total_cost.push(data.total_cost_usd);
+                dataHistory.tokens_in.push(data.tokens_in_total);
+                dataHistory.tokens_out.push(data.tokens_out_total);
+                dataHistory.quality.push(data.quality_avg);
+
+                // Update Latency Chart
+                charts.latency.data.labels = dataHistory.labels;
+                charts.latency.data.datasets[0].data = dataHistory.latency_p50;
+                charts.latency.data.datasets[1].data = dataHistory.latency_p95;
+                charts.latency.data.datasets[2].data = dataHistory.latency_p99;
+                charts.latency.data.datasets[3].data = Array(dataHistory.labels.length).fill(3000);
+                charts.latency.update();
+
+                // Update Traffic Chart
+                charts.traffic.data.labels = dataHistory.labels;
+                charts.traffic.data.datasets[0].data = dataHistory.traffic;
+                charts.traffic.update();
+
+                // Update Error Rate Chart
+                charts.errors.data.labels = dataHistory.labels;
+                charts.errors.data.datasets[0].data = dataHistory.error_rate;
+                charts.errors.data.datasets[1].data = Array(dataHistory.labels.length).fill(2.0); // 2% SLO
+                charts.errors.update();
+
+                // Update Cost Chart
+                charts.cost.data.labels = dataHistory.labels;
+                charts.cost.data.datasets[0].data = dataHistory.total_cost;
+                charts.cost.data.datasets[1].data = Array(dataHistory.labels.length).fill(2.5); // $2.5 daily budget SLO
+                charts.cost.update();
+
+                // Update Tokens Chart
+                charts.tokens.data.labels = dataHistory.labels;
+                charts.tokens.data.datasets[0].data = dataHistory.tokens_in;
+                charts.tokens.data.datasets[1].data = dataHistory.tokens_out;
+                charts.tokens.update();
+
+                // Update Quality Chart
+                charts.quality.data.labels = dataHistory.labels;
+                charts.quality.data.datasets[0].data = dataHistory.quality;
+                charts.quality.data.datasets[1].data = Array(dataHistory.labels.length).fill(0.75); // 0.75 SLO quality
+                charts.quality.update();
+
+            } catch (err) {
+                console.error("Failed to fetch metrics:", err);
+                statusDot.className = "status-dot disconnected";
+                statusText.innerText = "Error Connecting";
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initCharts();
+            fetchMetrics();
+            
+            // Poll metrics every 10 seconds
+            setInterval(fetchMetrics, 10000);
+        });
+    </script>
+</body>
+</html>
